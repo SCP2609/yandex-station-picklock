@@ -57,8 +57,7 @@ func TestSequentialJobsShareContext(t *testing.T) {
 			return nil
 		}, nil),
 	)
-	scenario := execution.Scenario{Name: "test", Description: "two steps", Pipeline: p} // Сценарий, запускаемый через публичный метод Run.
-	if err := scenario.Run(ctx); err != nil {                                           // Запускаем сценарий через его публичный метод.
+	if err := p.Execute(ctx); err != nil { // Запускаем pipeline с тестовым контекстом.
 		t.Fatal(err) // Немедленно завершаем тест при нарушении условия.
 	}
 	if !reflect.DeepEqual(order, []string{"produce", "consume"}) { // Сравниваем структуру результата с ожидаемой.
@@ -73,7 +72,7 @@ func TestSequentialJobsShareContext(t *testing.T) {
 			t.Fatalf("job snapshot: %+v", job) // Завершаем тест с диагностикой полученных значений.
 		}
 	}
-	if err := scenario.Run(ctx); !errors.Is(err, execution.ErrAlreadyStarted) { // Запускаем сценарий через его публичный метод.
+	if err := p.Execute(ctx); !errors.Is(err, execution.ErrAlreadyStarted) { // Повторный запуск требует нового дерева задач.
 		t.Fatalf("repeated run: %v", err) // Завершаем тест с диагностикой полученных значений.
 	}
 }
@@ -498,8 +497,5 @@ func TestCanceledBeforeStartAndEmptyPipeline(t *testing.T) {
 	empty := pipeline(t)                                                                                 // Собираем pipeline из тестовых задач.
 	if err := empty.Execute(t.Context()); err != nil || empty.Snapshot().Status != execution.Succeeded { // Запускаем pipeline без задач.
 		t.Fatalf("empty pipeline: %v", err) // Завершаем тест с диагностикой полученных значений.
-	}
-	if err := (execution.Scenario{}).Run(t.Context()); err == nil { // Проверяем отказ сценария без pipeline.
-		t.Fatal("accepted a missing scenario pipeline") // Немедленно завершаем тест при нарушении условия.
 	}
 }

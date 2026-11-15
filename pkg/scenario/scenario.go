@@ -1,8 +1,9 @@
 // Package scenario is the public SDK for scenario authors: stage constructors
 // with safe defaults and ready-made steps such as Wi-Fi pairing or waiting for a
-// device. It depends only on public packages (pkg/execution, pkg/quasarsound), so
-// scenarios can live outside this repository. Scenarios may use these pieces or
-// describe their own Stage values by hand; both forms feed the same pipeline.
+// device. It depends only on public packages (pkg/execution, pkg/quasarsound).
+//
+// Сами сценарии — сущность приложения: тип Scenario и каталог живут в internal.
+// SDK даёт кирпичи, из которых сценарий собирает свой pipeline.
 package scenario
 
 import (
@@ -29,8 +30,6 @@ type (
 	ParallelJobs = execution.ParallelJobs
 	// Pipeline — дерево выполнения одного запуска снимков состояния.
 	Pipeline = execution.Pipeline
-	// Scenario — именованный сценарий с готовым pipeline.
-	Scenario = execution.Scenario
 	// OptionalDecision решает, запускать ли необязательный шаг.
 	OptionalDecision = execution.OptionalDecision
 )
@@ -58,15 +57,6 @@ func NewPipeline(stages ...Stage) (*Pipeline, error) {
 // NewPipelineFromJobs собирает pipeline из произвольного дерева задач.
 func NewPipelineFromJobs(jobs ...Job) (*Pipeline, error) {
 	return execution.NewPipeline(jobs...)
-}
-
-// NewScenario собирает сценарий из последовательных шагов.
-func NewScenario(name, description string, stages ...Stage) (*Scenario, error) {
-	pipeline, err := NewPipeline(stages...)
-	if err != nil {
-		return nil, err
-	}
-	return &Scenario{Name: name, Description: description, Pipeline: pipeline}, nil
 }
 
 // WithOptionalDecision подключает к контексту выбор пользователя для необязательных шагов.

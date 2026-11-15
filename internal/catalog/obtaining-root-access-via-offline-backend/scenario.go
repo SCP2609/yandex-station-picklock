@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/fr33dman/yandex-station-picklock/internal/catalog/obtaining-root-access-via-offline-backend/stages"
+	"github.com/fr33dman/yandex-station-picklock/internal/scenario"
 	"github.com/fr33dman/yandex-station-picklock/pkg/execution"
-	"github.com/fr33dman/yandex-station-picklock/pkg/scenario"
+	sdk "github.com/fr33dman/yandex-station-picklock/pkg/scenario"
 )
 
 const Name = "OfflineBackendScenario"
@@ -16,40 +17,40 @@ const Description = "Настройка Wi-Fi и получение root чер�
 
 // Scenario owns its backend lifetime; execution itself remains UI/transport independent.
 type Scenario struct {
-	execution.Scenario
+	scenario.Scenario
 	session *stages.Session
 	started atomic.Bool
 }
 
 // NewScenario creates independent execution state for each scenario run.
-// Steps come from the scenario SDK: критичный шаг задаёт NewStage, а снимаемые
+// Шаги собираются конструкторами SDK: критичный шаг задаёт NewStage, а снимаемые
 // с шага флаги (Optional, BestEffort) остаются видимыми прямо в списке.
 func NewScenario(config stages.Config, ui stages.Interaction, device stages.Device, backend stages.Backend) (*Scenario, error) {
 	session, err := stages.NewSession(config, ui, device, backend)
 	if err != nil {
 		return nil, err
 	}
-	steps := []scenario.Stage{
-		scenario.NewStage("fetch-info", "Получить модель и параметры изолированной Wi-Fi сети", stages.FetchInfo),
-		scenario.NewStage("connect-wifi", "Воспроизвести сигнал подключения к Wi-Fi", stages.ConnectStationToWifi),
-		scenario.NewStage("update-firmware", "Отдать проверенную OTA-прошивку Station 1", stages.UpdateStationFirmware),
-		scenario.NewStage("wait-update", "Дождаться обновления и подключения ADB", stages.WaitUpdate),
-		scenario.NewStage("retrieve-boot", "Сохранить и проверить оригинальный boot", stages.RetrieveBoot),
-		scenario.NewStage("prepare-boot", "Подготовить проверенный boot с ADB и временным Telnet", stages.PrepareBoot),
-		scenario.NewStage("write-boot", "Записать boot и проверить полный readback", stages.WriteBoot),
-		scenario.NewStage("reboot", "Перезагрузить колонку после подтверждения", stages.Reboot),
-		scenario.NewStage("wait-reboot", "Проверить ADB и полный root через Telnet", stages.WaitReboot),
-		scenario.NewStage("install-ssh", "Установить Dropbear и проверить вход по ключу", stages.AddDropbear),
-		scenario.NewStage("disable-telnet", "Удалить Telnet из boot и остановить текущий сервис", stages.DisableTelnet),
+	steps := []sdk.Stage{
+		sdk.NewStage("fetch-info", "Получить модель и параметры изолированной Wi-Fi сети", stages.FetchInfo),
+		sdk.NewStage("connect-wifi", "Воспроизвести сигнал подключения к Wi-Fi", stages.ConnectStationToWifi),
+		sdk.NewStage("update-firmware", "Отдать проверенную OTA-прошивку Station 1", stages.UpdateStationFirmware),
+		sdk.NewStage("wait-update", "Дождаться обновления и подключения ADB", stages.WaitUpdate),
+		sdk.NewStage("retrieve-boot", "Сохранить и проверить оригинальный boot", stages.RetrieveBoot),
+		sdk.NewStage("prepare-boot", "Подготовить проверенный boot с ADB и временным Telnet", stages.PrepareBoot),
+		sdk.NewStage("write-boot", "Записать boot и проверить полный readback", stages.WriteBoot),
+		sdk.NewStage("reboot", "Перезагрузить колонку после подтверждения", stages.Reboot),
+		sdk.NewStage("wait-reboot", "Проверить ADB и полный root через Telnet", stages.WaitReboot),
+		sdk.NewStage("install-ssh", "Установить Dropbear и проверить вход по ключу", stages.AddDropbear),
+		sdk.NewStage("disable-telnet", "Удалить Telnet из boot и остановить текущий сервис", stages.DisableTelnet),
 		// Ограничение ADB сетью 192.168.0.0/16 — политика пользователя:
 		// шаг можно пропустить, и его сбой не останавливает остальные.
-		scenario.NewStage("restrict-adb", "Ограничить TCP/5555 сетью 192.168.0.0/16", stages.UpdateFirewall).Optional().BestEffort(),
+		sdk.NewStage("restrict-adb", "Ограничить TCP/5555 сетью 192.168.0.0/16", stages.UpdateFirewall).Optional().BestEffort(),
 	}
-	base, err := scenario.NewScenario(Name, Description, steps...)
+	pipeline, err := sdk.NewPipeline(steps...)
 	if err != nil {
 		return nil, err
 	}
-	return &Scenario{Scenario: *base, session: session}, nil
+	return &Scenario{Scenario: scenario.Scenario{Name: Name, Description: Description, Pipeline: pipeline}, session: session}, nil
 }
 
 func (s *Scenario) BackupDirectory() string { return s.session.BackupDirectory() }
