@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/fr33dman/yandex-station-picklock/internal/execution"
+	"github.com/fr33dman/yandex-station-picklock/pkg/execution"
 )
 
 // testModel создаёт модель с двумя сценариями и фиксированным размером терминала.
@@ -123,7 +123,7 @@ func TestParallelQuestionsKeepTheirTaskIdentity(t *testing.T) {
 		var answers sync.Map                           // Потокобезопасные ответы по идентификаторам задач.
 		jobs := make([]execution.Job, 0, 2)            // Выделяем буфер нужной длины.
 		for _, name := range []string{"one", "two"} {
-			jobs = append(jobs, execution.NewSingleJob(execution.Stage{Name: name, Description: "description " + name, Executive: func(ctx context.Context) error { // Тестовый шаг имитирует нужный вариант выполнения.
+			jobs = append(jobs, execution.NewSingleJob(execution.NewStage(name, "description "+name, func(ctx context.Context) error { // Тестовый шаг имитирует нужный вариант выполнения.
 				task, ok := execution.CurrentTask(ctx) // Извлекаем метаданные текущей задачи из контекста.
 				if !ok {
 					return errors.New("missing task context") // Отсутствие метаданных нарушает маршрутизацию ответов.
@@ -133,7 +133,7 @@ func TestParallelQuestionsKeepTheirTaskIdentity(t *testing.T) {
 					answers.Store(task.ID, value) // Сохраняем ответ под идентификатором нужной задачи.
 				}
 				return err
-			}}, nil))
+			}), nil))
 		}
 		pipeline, err := execution.NewPipeline(execution.NewParallelJobs(jobs, nil)) // Проверяем и собираем тестовое дерево задач.
 		if err != nil {
@@ -179,17 +179,17 @@ func TestParallelQuestionsKeepTheirTaskIdentity(t *testing.T) {
 // TestCancellationWaitsForCriticalWork проверяет ожидание начатой критической операции после отмены.
 func TestCancellationWaitsForCriticalWork(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) { // Проверяем конкурентный код с управляемым временем.
-		app := New()                                                                                                                                 // Создаём приложение UI для проверки взаимодействия.
-		app.active.Store(true)                                                                                                                       // Включаем приём событий UI без открытия терминала.
-		defer close(app.done)                                                                                                                        // Разблокируем отправителей до ожидания их завершения.
-		ctx, cancel := context.WithCancel(t.Context())                                                                                               // Создаём контекст с отдельной функцией отмены.
-		defer cancel()                                                                                                                               // Отменяем дочерний контекст и освобождаем ресурсы.
-		release := make(chan struct{})                                                                                                               // Барьер удерживает шаг до явного разрешения теста.
-		pipeline, err := execution.NewPipeline(execution.NewSingleJob(execution.Stage{Name: "critical", Executive: func(ctx context.Context) error { // Тестовый шаг имитирует нужный вариант выполнения.
+		app := New()                                                                                                                       // Создаём приложение UI для проверки взаимодействия.
+		app.active.Store(true)                                                                                                             // Включаем приём событий UI без открытия терминала.
+		defer close(app.done)                                                                                                              // Разблокируем отправителей до ожидания их завершения.
+		ctx, cancel := context.WithCancel(t.Context())                                                                                     // Создаём контекст с отдельной функцией отмены.
+		defer cancel()                                                                                                                     // Отменяем дочерний контекст и освобождаем ресурсы.
+		release := make(chan struct{})                                                                                                     // Барьер удерживает шаг до явного разрешения теста.
+		pipeline, err := execution.NewPipeline(execution.NewSingleJob(execution.NewStage("critical", "", func(ctx context.Context) error { // Тестовый шаг имитирует нужный вариант выполнения.
 			<-ctx.Done() // Ожидаем отмены контекста.
 			<-release
 			return ctx.Err() // Проверяем отмену или истечение срока контекста.
-		}}, nil))
+		}), nil))
 		if err != nil {
 			t.Fatal(err) // Немедленно завершаем тест при нарушении условия.
 		}

@@ -20,9 +20,9 @@ import (
 
 	"github.com/fr33dman/yandex-station-picklock/artifacts"
 	"github.com/fr33dman/yandex-station-picklock/internal/catalog/obtaining-root-access-via-offline-backend/stages"
-	"github.com/fr33dman/yandex-station-picklock/internal/execution"
 	"github.com/fr33dman/yandex-station-picklock/pkg/backend/ota"
 	"github.com/fr33dman/yandex-station-picklock/pkg/boot"
+	"github.com/fr33dman/yandex-station-picklock/pkg/execution"
 	"github.com/fr33dman/yandex-station-picklock/pkg/station"
 )
 

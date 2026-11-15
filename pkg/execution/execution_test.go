@@ -11,12 +11,12 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fr33dman/yandex-station-picklock/internal/execution"
+	"github.com/fr33dman/yandex-station-picklock/pkg/execution"
 )
 
 // job создаёт тестовую задачу с указанным действием и запасным путём.
 func job(name string, executive func(context.Context) error, fallback execution.Job) *execution.SingleJob {
-	return execution.NewSingleJob(execution.Stage{Name: name, Executive: executive}, fallback) // Создаём задачу с тестовым действием.
+	return execution.NewSingleJob(execution.NewStage(name, "", executive), fallback) // Создаём критичную задачу с тестовым действием.
 }
 
 // parallel объединяет тестовые задачи в параллельную группу.
@@ -398,6 +398,52 @@ func TestConcurrentRunAndSnapshot(t *testing.T) {
 			t.Fatal(err) // Немедленно завершаем тест при нарушении условия.
 		}
 	})
+}
+
+// TestStageFlagsControlPipeline проверяет критичность шага и выбор пользователя для необязательного шага.
+func TestStageFlagsControlPipeline(t *testing.T) {
+	failure := errors.New("stage failed") // Ошибка шага для проверки обработки сбоев.
+	var ran []string                      // Порядок фактически запущенных шагов.
+	record := func(name string, err error) execution.Stage {
+		return execution.NewStage(name, "", func(context.Context) error {
+			ran = append(ran, name)
+			return err
+		})
+	}
+
+	bestEffort := pipeline(t, // Сбой best-effort шага не останавливает следующие.
+		execution.NewSingleJob(record("best-effort", failure).BestEffort(), nil),
+		execution.NewSingleJob(record("next", nil), nil),
+	)
+	if err := bestEffort.Execute(t.Context()); err != nil {
+		t.Fatalf("best-effort failure stopped the pipeline: %v", err)
+	}
+	if snapshot := bestEffort.Snapshot(); len(snapshot.Warnings) != 1 || snapshot.Jobs[0].Status != execution.Failed || snapshot.Jobs[1].Status != execution.Succeeded {
+		t.Fatalf("best-effort snapshot: %+v", snapshot)
+	}
+
+	critical := pipeline(t, // Сбой критичного шага пропускает остальные.
+		execution.NewSingleJob(record("critical", failure), nil),
+		execution.NewSingleJob(record("skipped", nil), nil),
+	)
+	if err := critical.Execute(t.Context()); !errors.Is(err, failure) {
+		t.Fatalf("critical failure was ignored: %v", err)
+	}
+	if snapshot := critical.Snapshot(); snapshot.Jobs[1].Status != execution.Skipped || len(snapshot.Warnings) != 0 {
+		t.Fatalf("critical snapshot: %+v", snapshot)
+	}
+
+	ran = nil // Необязательный шаг по отказу пользователя не запускается.
+	optional := pipeline(t, execution.NewSingleJob(record("optional", nil).Optional().BestEffort(), nil))
+	ctx := execution.WithOptionalDecision(t.Context(), func(context.Context, execution.Stage) (bool, error) {
+		return false, nil
+	})
+	if err := optional.Execute(ctx); err != nil {
+		t.Fatalf("declined optional step: %v", err)
+	}
+	if len(ran) != 0 || optional.Snapshot().Jobs[0].Status != execution.Skipped {
+		t.Fatalf("optional step ran after a refusal: %v", ran)
+	}
 }
 
 // TestValidationAndOwnership проверяет дерево задач, исключительное владение и откат неудачной сборки.
