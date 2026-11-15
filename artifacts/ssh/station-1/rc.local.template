@@ -1,0 +1,144 @@
+#!/system/bin/sh
+
+# time /etc/rc.local полного скрипка примерно 6.54 секунды
+
+#PE7 -> STM_SLEEP           
+if [ ! -d "/sys/class/gpio/gpio135" ]; then
+echo 135 > /sys/class/gpio/export
+fi
+echo out > /sys/class/gpio/gpio135/direction
+echo 1 > /sys/class/gpio/gpio135/value      # STOP MCU LED animation
+
+#STM32 RESET pin (MCU halt)
+if [ ! -d "/sys/class/gpio/gpio133" ]; then
+echo 133 > /sys/class/gpio/export
+fi
+echo out > /sys/class/gpio/gpio133/direction
+echo 0 > /sys/class/gpio/gpio133/value
+
+# здесь нужно проверить grep-ом чипы на i2c интерфейсах
+
+# нужно какую-то анимацию до старта приложения с dettach.
+# До onboot.sh примерно 5.25 секунды.
+# До самого конца примерно на 6.34 секунды
+
+BOARD=$(busybox awk -F= '/ro\.product\.model/{print $NF}' /system/build.prop) 
+echo "BOARD=$BOARD"
+
+currentTime=`date +%s`
+controlTime=`getprop ro.build.date.utc`
+
+if [[ $currentTime -le $controlTime ]]; then
+      busybox date +%s -s @$controlTime
+else
+   echo "Time was not changed"
+fi
+
+# Disable Captive Portal
+settings put global captive_portal_server 127.0.0.1 &
+settings put global captive_portal_detection_enable 0 &
+
+if grep -q `getprop ro.serialno` /system/etc/device_id_5GHz_broken.list; then
+  echo "Disabling 5GHz wifi"
+  # Disable 5GHz WiFi networks connections
+  settings put global wifi_frequency_band 2 &
+fi
+
+# Set default NTP server
+# settings put global ntp_server ntp1.yandex.net
+
+#PD10 -> SN3236_VCC_ENABLE  (logic 1)
+if [ ! -d "/sys/class/gpio/gpio106" ]; then
+echo 106 > /sys/class/gpio/export
+fi
+echo out > /sys/class/gpio/gpio106/direction
+echo 1 > /sys/class/gpio/gpio106/value
+
+#PD6 -> IED_IC2_SDB  (logic 1)
+if [ ! -d "/sys/class/gpio/gpio102" ]; then
+echo 102 > /sys/class/gpio/export
+fi
+echo out > /sys/class/gpio/gpio102/direction
+echo 1 > /sys/class/gpio/gpio102/value
+
+#PD7 -> IED_IC2_SDB  (logic 1)
+if [ ! -d "/sys/class/gpio/gpio103" ]; then
+echo 103 > /sys/class/gpio/export
+fi
+echo out > /sys/class/gpio/gpio103/direction
+echo 1 > /sys/class/gpio/gpio103/value
+
+# PH11 - KEY_FUNCTION
+if [ ! -d "/sys/class/gpio/gpio235" ]; then
+echo 235 > /sys/class/gpio/export
+fi
+echo in > /sys/class/gpio/gpio235/direction
+#cat /sys/class/gpio/gpio235/value
+
+# PB2 - TLV_MIC_EN_DET - flip-flop trigger output
+if [ ! -d "/sys/class/gpio/gpio34" ]; then
+echo 34 > /sys/class/gpio/export
+fi
+echo in > /sys/class/gpio/gpio34/direction
+#cat /sys/class/gpio/gpio34/value
+
+# PB0 - INCREAS_CODE_KEY_2
+if [ ! -d "/sys/class/gpio/gpio32" ]; then
+echo 32 > /sys/class/gpio/export
+fi
+echo in > /sys/class/gpio/gpio32/direction
+#cat /sys/class/gpio/gpio32/value
+
+# PB1 - INCREAS_CODE_KEY_1
+if [ ! -d "/sys/class/gpio/gpio33" ]; then
+echo 33 > /sys/class/gpio/export
+fi
+echo in > /sys/class/gpio/gpio33/direction
+#cat /sys/class/gpio/gpio33/value
+
+i2cset -f -y 0 0x53 0x00 0x02 # enable sensor
+# set 0x04 - ALS_MEAS_RATE
+# set 0x05 - ALS_MEAS_GAIN
+
+# #PD12 -> LED_SDB  (logic 1) - enable MA button LED backlight
+# if [ ! -d "/sys/class/gpio/gpio108" ]; then
+# echo 108 > /sys/class/gpio/export
+# fi
+# echo out > /sys/class/gpio/gpio108/direction
+# echo 1 > /sys/class/gpio/gpio108/value
+
+# PH10 - MIC ARRAY ADCs HW RESET
+if [ ! -d "/sys/class/gpio/gpio234" ]; then
+echo 234 > /sys/class/gpio/export
+echo out > /sys/class/gpio/gpio234/direction
+fi
+echo 0 > /sys/class/gpio/gpio234/value
+sleep 0.1
+echo 1 > /sys/class/gpio/gpio234/value
+/system/bin/i2c_ma
+
+echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+#echo 1152000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+#echo 1152000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
+
+echo performance > /sys/class/devfreq/dramfreq/governor
+#echo 672000000 > /sys/class/devfreq/dramfreq/max_freq
+#echo 672000000 > /sys/class/devfreq/dramfreq/min_freq
+
+/system/bin/chmod uga+rwx /logger/*
+#/system/bin/setsid /system/bin/telemetry.sh >/dev/null 2>&1 < /dev/null &
+
+show_loadavg=`getprop ro.quasar.show_cpu_usage`
+
+if [[ show_loadavg -eq 1 ]]; then
+	am startservice com.android.systemui/com.android.systemui.LoadAverageService
+fi
+
+rm -rf /cache/lost+found/*
+rm -rf /data/lost+found/*
+
+/system/vendor/quasar/onboot.sh
+
+wait
+exit 0
+
