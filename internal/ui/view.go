@@ -209,9 +209,6 @@ func (m *model) drawTask(c *canvas, area rect, task taskView) {
 	}
 	if m.phase == finishedPhase && m.err == nil && m.run != nil {
 		text = "Готово.\n" + m.run.Details
-		if len(m.snapshot.Warnings) > 0 { // Допущенные сбои best-effort шагов остаются видимыми.
-			text += "\n\nШаги, продолжившие работу после сбоя:\n" + strings.Join(m.snapshot.Warnings, "\n")
-		}
 	}
 	if m.stopping {
 		text = "Запрошена отмена. Уже начатая запись boot завершится вместе с проверкой readback."

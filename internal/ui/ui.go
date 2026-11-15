@@ -332,12 +332,6 @@ func (a *App) Run(ctx context.Context, entries []Entry) (result error) {
 	}
 }
 
-// optional спрашивает пользователя, запускать ли необязательный шаг сценария.
-// Отказ пропускает шаг, не останавливая остальную цепочку.
-func (a *App) optional(ctx context.Context, stage execution.Stage) (bool, error) {
-	return a.Confirm(ctx, fmt.Sprintf("Необязательный шаг «%s»: %s\nЗапустить его? Отказ пропустит шаг.", stage.Name, stage.Description))
-}
-
 // start собирает и запускает сценарий в горутине; буфер результата позволяет завершиться без читателя.
 func (a *App) start(ctx context.Context, entry Entry, generation int) <-chan runResult {
 	done := make(chan runResult, 1) // Буфер одного результата не задерживает завершение отправителя.
@@ -370,7 +364,7 @@ func (a *App) start(ctx context.Context, entry Entry, generation int) <-chan run
 			result.err = errors.New("CLI stopped") // Сообщаем ожидающей задаче о закрытии UI.
 			return
 		}
-		result.err = result.run.Execute(execution.WithOptionalDecision(ctx, a.optional)) // Запускаем сценарий и спрашиваем о необязательных шагах.
+		result.err = result.run.Execute(ctx) // Запускаем сценарий вместе с предусмотренной им очисткой.
 	}()
 	return done
 }
