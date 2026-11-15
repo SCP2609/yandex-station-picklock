@@ -32,6 +32,8 @@ func NewScenario(config stages.Config, ui stages.Interaction, device stages.Devi
 	}
 	steps := []sdk.Stage{
 		sdk.NewStage("fetch-info", "Получить модель и параметры изолированной Wi-Fi сети", stages.FetchInfo),
+		// Точку доступа пользователь поднимает сам; шаг ждёт, пока сеть заработает.
+		sdk.NewStage("wait-access-point", "Дождаться, пока пользователь включит точку доступа", stages.WaitAccessPoint),
 		sdk.NewStage("connect-wifi", "Воспроизвести сигнал подключения к Wi-Fi", stages.ConnectStationToWifi),
 		sdk.NewStage("update-firmware", "Отдать проверенную OTA-прошивку Station 1", stages.UpdateStationFirmware),
 		sdk.NewStage("wait-update", "Дождаться обновления и подключения ADB", stages.WaitUpdate),
